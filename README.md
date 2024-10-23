@@ -1,17 +1,16 @@
-# Linear release sync
+# Linear update
 
-Add release label on linear tickets found in PRs merged
-in base branch since last release
+Add description to ticket
 
 ## Usage
 
 ```yaml
       - name: Sync linear tickets
-        uses: rayonapp/linear-sync@main
+        uses: rayonapp/linear-update@main
         continue-on-error: true
         with:
             token: ${{ secrets.GITHUB_TOKEN }}
             linearApiKey: ${{ secrets.LINEAR_API_KEY }}
-            releaseLabel: ${{ steps.bump-version.outputs.tag }}
+            comment: ${{ steps.comment.comment }}
             ticketPrefix: RAY
 ```

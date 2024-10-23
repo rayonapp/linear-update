@@ -28954,69 +28954,30 @@ async function run() {
         const token = core.getInput('token');
         const apiKey = core.getInput('linearApiKey');
         const ticketPrefix = core.getInput('ticketPrefix');
-        const releaseLabelName = core.getInput('releaseLabel');
-        const baseBranch = core.getInput('baseBranch');
-        const maxPrLength = core.getInput('maxPrLength');
-        const stateId = core.getInput('stateId');
+        const description = core.getInput('description');
         const linearClient = new sdk_1.LinearClient({ apiKey });
         const octokit = github.getOctokit(token);
-        console.log('Getting Latest release...');
-        const latestRelease = await octokit.rest.repos.getLatestRelease({
-            ...github.context.repo
-        });
-        console.log('Latest release found:', latestRelease.data.name);
-        console.log('Getting pull requests...');
-        const pullRequests = await octokit.rest.pulls.list({
+        const currentPrNumber = github.context.payload.pull_request?.number;
+        if (!currentPrNumber) {
+            throw new Error('Cannot retrieve PR number');
+        }
+        console.log(`Getting comment from PR #${currentPrNumber}`);
+        const comments = await octokit.rest.issues.listComments({
             ...github.context.repo,
-            base: baseBranch,
-            state: 'closed',
-            sort: 'updated',
-            direction: 'desc',
-            per_page: Number(maxPrLength)
+            issue_number: currentPrNumber
         });
-        const mergedPRs = pullRequests.data.filter(pr => pr.merged_at && pr.merged_at >= (latestRelease?.data?.published_at ?? 0));
-        console.log(`${mergedPRs.length} merged since last release`);
-        const linearTickets = (await Promise.all(mergedPRs.map(async (pr) => {
-            console.log(`Getting comment from PR #${pr.number}`);
-            const comments = await octokit.rest.issues.listComments({
-                ...github.context.repo,
-                issue_number: Number(pr.number)
-            });
-            const linearComment = comments.data.find(c => c.performed_via_github_app?.name === 'Linear');
-            const ticket = linearComment?.body?.match(new RegExp(`\\b${ticketPrefix}-\\d+\\b`) // eslint-disable-line no-useless-escape
-            );
-            if (ticket) {
-                console.log(`Found ticket ${ticket}`);
-            }
-            return ticket?.[0];
-        }))).filter((t) => Boolean(t));
-        console.log('Getting Releases label');
-        const labels = await linearClient.issueLabels({
-            filter: { name: { eq: 'Releases' } }
+        const linearComment = comments.data.find(c => c.performed_via_github_app?.name === 'Linear');
+        const ticketRef = linearComment?.body?.match(new RegExp(`\\b${ticketPrefix}-\\d+\\b`) // eslint-disable-line no-useless-escape
+        )?.[0];
+        if (!ticketRef) {
+            throw new Error('Cannot retrieve ticket ref from PR comments');
+        }
+        console.log(`Found ticket ref ${ticketRef}`);
+        const linearTicket = await linearClient.issue(ticketRef);
+        await linearTicket.update({
+            description: `${linearTicket.description}\n${description}`
         });
-        let parentId = labels.nodes[0]?.id;
-        if (!parentId) {
-            console.log(`Releases label doesn't exist, creating it...`);
-            parentId = (await (await linearClient.createIssueLabel({ name: 'Releases' })).issueLabel)?.id;
-        }
-        console.log('Creating new version label...');
-        const releaseLabel = await (await linearClient.createIssueLabel({ name: releaseLabelName, parentId })).issueLabel;
-        if (!releaseLabel) {
-            throw new Error('Cannot retrieve new version label');
-        }
-        for (const ref of linearTickets) {
-            try {
-                console.log(`Updating ticket ${ref}`);
-                const ticket = await linearClient.issue(ref);
-                await ticket.update({
-                    labelIds: [releaseLabel.id, ...ticket.labelIds].filter(Boolean),
-                    stateId
-                });
-            }
-            catch (e) {
-                console.error(e);
-            }
-        }
+        console.log('Description updated!');
     }
     catch (error) {
         // Fail the workflow run if an error occurs
