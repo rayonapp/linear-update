@@ -11,25 +11,13 @@ inputs:
   linearApiKey:
     description: 'Linear API key'
     required: true
-  releaseLabel:
-    description: 'Release label pu in linear'
-    required: true
-  maxPrLength:
-    description: 'Maximum number of PRs fetch with the API'
-    required: false
-    default: '100'
-  baseBranch:
-    default: 'dev'
-    required: false
-    description: 'Main branch where PRs are merged'
   ticketPrefix:
     default: 'RAY'
     required: false
     description: 'Ticket prefix (can be a regex)'
-  stateId:
-    default: '2dd3bad8-0d14-4708-84ff-a2903d36857a'
-    required: false
-    description: 'If you want to update your ticket state'
+  comment:
+    required: true
+    description: 'Comment to add to ticket'
 
 
 
