@@ -34,8 +34,39 @@ export async function run(): Promise<void> {
     }
     console.log(`Found ticket ref ${ticketRef}`)
 
+    const initThreadBody = 'App previews \n'
     const linearTicket = await linearClient.issue(ticketRef)
-    await linearClient.createComment({ createAsUser: null, body: comment, issueId: linearTicket.id })
+    console.log('Ticket found')
+    const currentComments = await linearClient.comments({
+      filter: {
+        body: {
+          startsWith: initThreadBody
+        },
+        issue: {
+          id: {
+            eq: linearTicket.id
+          }
+        }
+      }
+    })
+    console.log('Comments found')
+    let previewParentComment = currentComments.nodes[0]
+    if (!previewParentComment) {
+      console.log('Preview comment no found, creating it')
+      previewParentComment = await (
+        await linearClient.createComment({
+          body: initThreadBody,
+          issueId: linearTicket.id,
+          doNotSubscribeToIssue: true
+        })
+      ).comment!
+      console.log(`Preview comment created #${previewParentComment?.id}`)
+    } else {
+      console.log(`Preview comment found #${previewParentComment.id}`)
+    }
+    await linearClient.updateComment(previewParentComment.id, {
+      body: `${previewParentComment.body}\n${comment}`
+    })
 
     console.log('Comment added!')
   } catch (error) {

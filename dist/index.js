@@ -28954,7 +28954,7 @@ async function run() {
         const token = core.getInput('token');
         const apiKey = core.getInput('linearApiKey');
         const ticketPrefix = core.getInput('ticketPrefix');
-        const description = core.getInput('description');
+        const comment = core.getInput('comment');
         const linearClient = new sdk_1.LinearClient({ apiKey });
         const octokit = github.getOctokit(token);
         const currentPrNumber = github.context.payload.pull_request?.number;
@@ -28973,11 +28973,39 @@ async function run() {
             throw new Error('Cannot retrieve ticket ref from PR comments');
         }
         console.log(`Found ticket ref ${ticketRef}`);
+        const initThreadBody = 'App previews \n';
         const linearTicket = await linearClient.issue(ticketRef);
-        await linearTicket.update({
-            description: `${linearTicket.description}\n${description}`
+        console.log('Ticket found');
+        const currentComments = await linearClient.comments({
+            filter: {
+                body: {
+                    startsWith: initThreadBody
+                },
+                issue: {
+                    id: {
+                        eq: linearTicket.id
+                    }
+                }
+            }
         });
-        console.log('Description updated!');
+        console.log('Comments found');
+        let previewParentComment = currentComments.nodes[0];
+        if (!previewParentComment) {
+            console.log('Preview comment no found, creating it');
+            previewParentComment = await (await linearClient.createComment({
+                body: initThreadBody,
+                issueId: linearTicket.id,
+                doNotSubscribeToIssue: true
+            })).comment;
+            console.log(`Preview comment created #${previewParentComment?.id}`);
+        }
+        else {
+            console.log(`Preview comment found #${previewParentComment.id}`);
+        }
+        await linearClient.updateComment(previewParentComment.id, {
+            body: `${previewParentComment.body}\n${comment}`
+        });
+        console.log('Comment added!');
     }
     catch (error) {
         // Fail the workflow run if an error occurs
